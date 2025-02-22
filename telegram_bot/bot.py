@@ -12,8 +12,9 @@ from telegram.ext import (
     InlineQueryHandler,
     filters,
 )
-from denodo_wrapper import upload_file
+from denodo_wrapper import upload_file, DenodoAPI
 from file_validator import csv_is_valid
+
 
 # Configure logging
 logging.basicConfig(
@@ -29,12 +30,29 @@ async def start(update, context):
         chat_id=update.effective_chat.id, text="Welcome to our bot!"
     )
 
-async def query(update, context):
-    """Convert the user's message to uppercase."""
-    text_caps = ' '.join(context.args).upper()
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id, text=text_caps
-    )
+async def query(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /query command in Telegram"""
+
+    if not context.args:
+        await update.message.reply_text("❌ Please provide a question.")
+        return
+
+    question_text = ' '.join(context.args)
+
+    try:
+        denodo_client = DenodoAPI(base_url="http://localhost:8008", username="admin", password="admin")
+        
+        response = await asyncio.to_thread(denodo_client.answer_question, question_text)
+        
+        answer = response.get("answer", "No answer found.")
+    
+    except asyncio.TimeoutError:
+        answer = "⏳ API took too long to respond. Try again later."
+    
+    except Exception as e:
+        answer = f"Error: {str(e)}"
+
+    await update.message.reply_text(answer)
 
 async def inline_caps(update, context):
     """Handle inline queries to convert text to uppercase."""
@@ -86,6 +104,7 @@ async def attachment(update, context):
         await message.reply_text("The uploaded file is not a valid CSV.")
         return
 
+    await message.reply_text("Uploading CSV. This could take a while... When ready, we will notify you :)")
     # Using asyncio because denodo_wrapper is a blocking library
     upload_success = await asyncio.to_thread(upload_file, file_path, denodo_repository_path)
 

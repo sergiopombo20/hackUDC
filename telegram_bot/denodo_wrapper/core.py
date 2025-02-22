@@ -236,7 +236,6 @@ def wait_until_url_is_available(url, timeout=60, interval=3):
     print(f"Timeout reached. URL {url} is still unavailable.")
     return False
 
-
 def restart_denodo_ai_sdk_chatbot_container(docker_compose_path):
     try:
         remove_container(DENODO_AI_CHATBOT_NAME)
@@ -264,14 +263,17 @@ def upload_file(file_path, denodo_repository_path):
     wait = WebDriverWait(driver, 10)
 
     success = True
-    success = upload_to_design_studio(file_path, driver, wait)
-    if success:
-        success = update_data_catalog(driver, wait)
+    if not upload_to_design_studio(file_path, driver, wait):
+        return False
+    
+    if not update_data_catalog(driver, wait):
+        return False
 
     driver.quit()
 
-    success = update_env_file(denodo_repository_path, file_path.stem)
+    if not update_env_file(denodo_repository_path, file_path.stem):
+        return False
+    
     docker_compose_path = denodo_repository_path/'lab-environment-containers'/'build'/'docker-compose-sample-chatbot.yml'
-    success = restart_denodo_ai_sdk_chatbot_container(docker_compose_path)
-
-    return success
+    
+    return restart_denodo_ai_sdk_chatbot_container(docker_compose_path)

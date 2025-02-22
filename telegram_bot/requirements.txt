@@ -2,3 +2,4 @@ python-telegram-bot
 selenium
 python-magic
 requests
+aiohttp
