@@ -38,6 +38,7 @@ async def query(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     question_text = ' '.join(context.args)
+    await update.message.reply_text("Querying Denodo... Please be patient, as its speed is beyond our control 🥲.")
 
     try:
         denodo_client = DenodoAPI(base_url="http://localhost:8008", username="admin", password="admin")
