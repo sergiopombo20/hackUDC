@@ -11,6 +11,7 @@ from telegram.ext import (
     InlineQueryHandler,
     filters,
 )
+from denodo_wrapper import upload_file
 
 # Configure logging
 logging.basicConfig(
@@ -24,12 +25,6 @@ async def start(update, context):
     """Send a welcome message when the /start command is issued."""
     await context.bot.send_message(
         chat_id=update.effective_chat.id, text="Welcome to our bot!"
-    )
-
-async def echo(update, context):
-    """Echo the user message."""
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id, text=update.message.text
     )
 
 async def caps(update, context):
@@ -53,9 +48,18 @@ async def inline_caps(update, context):
     ]
     await context.bot.answer_inline_query(update.inline_query.id, results)
 
-async def no_command(update, context):
+async def help_message(update, context):
+    """Print help every time unknown command or no command is sent"""
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id, text="Help message. TODO: update" # TODO: update help message
+    )
+
+async def attachment(update, context):
+    download_path = context.bot_data.get("download_path")
+
     message = update.message
     attachment = message.effective_attachment
+    caption = update.message.caption
 
     if not attachment:
         await message.reply_text("No attach")
@@ -63,8 +67,16 @@ async def no_command(update, context):
 
     new_file = await attachment.get_file()
     file_name = getattr(message.document, 'file_name', None) or f"file_{new_file.file_id}"
-    await new_file.download_to_drive(custom_path=file_name)
-    await message.reply_text(f"{file_name} saved successfully.")
+    file_path = download_path / file_name
+
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    await new_file.download_to_drive(custom_path=file_path)
+
+    # TODO: Don't block event loop (make sure this execution is asynchronous)
+    upload_file(file_path)
+
+    await message.reply_text(f"Respuesta")
 
 async def unknown(update, context):
     """Inform the user that the command is unknown."""
@@ -96,13 +108,14 @@ def main():
     """Initialize and run the Telegram bot."""
     config = parse_config()
     application = ApplicationBuilder().token(config["token"]).build()
-    download_path = config["download_path"]
+    application.bot_data["download_path"] = config["download_path"]
 
     # Register handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("caps", caps))
     application.add_handler(InlineQueryHandler(inline_caps))
-    application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), no_command))
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), help_message))
+    application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), attachment))
     application.add_handler(MessageHandler(filters.COMMAND, unknown))
 
     # Start polling for updates from Telegram
