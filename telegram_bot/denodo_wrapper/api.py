@@ -62,14 +62,5 @@ class DenodoAPI:
         """
         payload = {
             "question": question,
-            "embeddings_provider": "googleaistudio",
-            "embeddings_model": "models/text-embedding-004",
-            "vector_store_provider": "Chroma",
-            "sql_gen_provider": "googleaistudio",
-            "sql_gen_model": "gemini-2.0-flash",
-            "chat_provider": "googleaistudio",
-            "chat_model": "gemini-2.0-flash",
-            "vdp_database_names": "athletes",
-            "markdown_response": True
         }
         return self._request("POST", "/answerQuestion", json_data=payload)
