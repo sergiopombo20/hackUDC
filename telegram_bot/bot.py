@@ -1,5 +1,6 @@
 import logging
 import configparser
+import asyncio
 from pathlib import Path
 from uuid import uuid4
 from telegram import InlineQueryResultArticle, InputTextMessageContent, Update
@@ -12,6 +13,7 @@ from telegram.ext import (
     filters,
 )
 from denodo_wrapper import upload_file
+from file_validator import csv_is_valid
 
 # Configure logging
 logging.basicConfig(
@@ -27,7 +29,7 @@ async def start(update, context):
         chat_id=update.effective_chat.id, text="Welcome to our bot!"
     )
 
-async def caps(update, context):
+async def query(update, context):
     """Convert the user's message to uppercase."""
     text_caps = ' '.join(context.args).upper()
     await context.bot.send_message(
@@ -59,13 +61,19 @@ async def attachment(update, context):
 
     message = update.message
     attachment = message.effective_attachment
-    caption = update.message.caption
 
     if not attachment:
-        await message.reply_text("No attach")
+        await message.reply_text("No attachment found")
         return
 
-    new_file = await attachment.get_file()
+    # If the attachment is a list (e.g. for photos), select the largest size.
+    if isinstance(attachment, (list, tuple)):
+        file_obj = attachment[-1]
+    else:
+        file_obj = attachment
+
+    new_file = await file_obj.get_file()
+    
     file_name = getattr(message.document, 'file_name', None) or f"file_{new_file.file_id}"
     file_path = download_path / file_name
 
@@ -73,10 +81,18 @@ async def attachment(update, context):
 
     await new_file.download_to_drive(custom_path=file_path)
 
-    # TODO: Don't block event loop (make sure this execution is asynchronous)
-    upload_file(file_path)
+    if not csv_is_valid(file_path):
+        await message.reply_text("The uploaded file is not a valid CSV.")
+        return
 
-    await message.reply_text(f"Respuesta")
+    # Using asyncio because denodo_wrapper is a blocking library
+    upload_success = await asyncio.to_thread(upload_file, file_path)
+
+
+    if upload_success:
+        await message.reply_text("File uploaded successfully.")
+    else:
+        await message.reply_text("File upload failed.")
 
 async def unknown(update, context):
     """Inform the user that the command is unknown."""
@@ -112,8 +128,7 @@ def main():
 
     # Register handlers
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("caps", caps))
-    application.add_handler(InlineQueryHandler(inline_caps))
+    application.add_handler(CommandHandler("query", query))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), help_message))
     application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), attachment))
     application.add_handler(MessageHandler(filters.COMMAND, unknown))
