@@ -58,6 +58,7 @@ async def help_message(update, context):
 
 async def attachment(update, context):
     download_path = context.bot_data.get("download_path")
+    denodo_repository_path = context.bot_data.get("denodo_repository_path")
 
     message = update.message
     attachment = message.effective_attachment
@@ -86,7 +87,7 @@ async def attachment(update, context):
         return
 
     # Using asyncio because denodo_wrapper is a blocking library
-    upload_success = await asyncio.to_thread(upload_file, file_path)
+    upload_success = await asyncio.to_thread(upload_file, file_path, denodo_repository_path)
 
 
     if upload_success:
@@ -110,6 +111,7 @@ def parse_config(config_file="bot.conf"):
     try:
         config["token"] = config_parser["telegram"]["token"]
         config["download_path"] = Path(config_parser["telegram"]["download_path"])
+        config["denodo_repository_path"] = Path(config_parser["telegram"]["denodo_repository_path"])
     except KeyError as e:
         logger.error(f"Missing token in configuration file: {e}")
         raise
@@ -125,6 +127,7 @@ def main():
     config = parse_config()
     application = ApplicationBuilder().token(config["token"]).build()
     application.bot_data["download_path"] = config["download_path"]
+    application.bot_data["denodo_repository_path"] = config["denodo_repository_path"]
 
     # Register handlers
     application.add_handler(CommandHandler("start", start))

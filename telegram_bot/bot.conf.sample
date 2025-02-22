@@ -1,3 +1,4 @@
 [telegram]
 token = YOUR_BOT_TOKEN_HERE
 download_path = downloads
+denodo_repository_path = /set/the/path/denodocommunity-lab-environment

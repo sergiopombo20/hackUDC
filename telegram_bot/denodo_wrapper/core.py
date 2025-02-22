@@ -1,7 +1,6 @@
-# denodo_wrapper/core.py
-
 import time
-from docker_wrapper import copy_to_container
+import requests
+from docker_wrapper import copy_to_container, remove_container, compose_up_service
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -11,6 +10,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import Select
 
 DENODO_PLATFORM_CHATBOT_NAME = 'denodo-platform-chatbot'
+DENODO_AI_CHATBOT_NAME = 'denodo-ai-sdk-chatbot'
 DENODO_PLATFORM_CHATBOT_DST_DIR = '/home'
 
 def update_data_catalog(driver, wait):
@@ -194,7 +194,61 @@ def upload_to_design_studio(file_path, driver, wait):
     
     return False
 
-def upload_file(file_path):
+def update_env_file(denodo_repository_path, vdb_names):
+    try:
+        env_path = denodo_repository_path/'lab-environment-containers'/'build'/'.env'
+        new_vdb_names = vdb_names
+        new_chatbot_vdb_names = vdb_names
+
+        with env_path.open("r") as file:
+            lines = file.readlines()
+
+        with env_path.open("w") as file:
+            for line in lines:
+                if line.startswith("VDB_NAMES="):
+                    file.write(f"VDB_NAMES={new_vdb_names}\n")
+                elif line.startswith("DENODO_CHATBOT_SAMPLE_VDB_NAMES="):
+                    file.write(f"DENODO_CHATBOT_SAMPLE_VDB_NAMES={new_chatbot_vdb_names}\n")
+                else:
+                    file.write(line)
+        
+        return True
+
+    except Exception as e:
+        print(f"Error during env file update: {e}")
+        return False
+
+def wait_until_url_is_available(url, timeout=60, interval=3):
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                print(f"URL is available: {url}")
+                return True
+        except requests.RequestException:
+            pass
+        
+        print(f"Waiting for {url} to be available...")
+        time.sleep(interval)
+    
+    print(f"Timeout reached. URL {url} is still unavailable.")
+    return False
+
+
+def restart_denodo_ai_sdk_chatbot_container(docker_compose_path):
+    try:
+        remove_container(DENODO_AI_CHATBOT_NAME)
+
+        compose_up_service(docker_compose_path, DENODO_AI_CHATBOT_NAME)
+        
+        return wait_until_url_is_available('http://localhost:9992/') # TODO: Stop hardcoding
+    except Exception as e:
+        print(f"Error during env file update: {e}")
+        return False
+
+def upload_file(file_path, denodo_repository_path):
     """
     Upload the given file to a remote endpoint using Selenium.
     Returns True if upload succeeds, False otherwise.
@@ -215,4 +269,9 @@ def upload_file(file_path):
         success = update_data_catalog(driver, wait)
 
     driver.quit()
+
+    success = update_env_file(denodo_repository_path, file_path.stem)
+    docker_compose_path = denodo_repository_path/'lab-environment-containers'/'build'/'docker-compose-sample-chatbot.yml'
+    success = restart_denodo_ai_sdk_chatbot_container(docker_compose_path)
+
     return success
