@@ -1,0 +1,3 @@
+[telegram]
+token = YOUR_BOT_TOKEN_HERE
+download_path = downloads
