@@ -1,2 +1,5 @@
 venv/
 bot.conf
+downloads/
+__pycache__/
+*.pyc/
